@@ -30,18 +30,38 @@
     </table>
     <footer class="page-foot">
       <span>数据保存在本机浏览器里，换浏览器或清缓存会回到示例数据</span>
+      <span v-if="bootLine" :class="['boot-line', bootClass]">{{ bootLine }}</span>
     </footer>
   </section>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 import { loadOverview } from '@/api/local-service'
+import { initReport, isDegraded } from '@/data/local-store'
 import type { OverviewResult } from '@/data/types'
 
 const cards = ref<OverviewResult['cards']>([])
 const moduleRows = ref<OverviewResult['modules']>([])
+
+const bootLine = computed(() => {
+  const report = initReport()
+  if (isDegraded()) {
+    return '本地数据初始化异常：当前为内存退化模式，刷新后改动会丢失，详细复现步骤见 Console 的 [本地数据初始化] 日志'
+  }
+  if (!report) {
+    return ''
+  }
+  if (report.mode === 'migrated') {
+    return `本地数据已完成兼容初始化（迁移 ${report.changes.length} 处，告警 ${report.warnings.length} 条），详情见 Console 的 [本地数据初始化] 日志`
+  }
+  if (report.mode === 'fresh') {
+    return `本地数据已按统一架位基线首次播种（${report.env}），架位 ${report.shelfCount} 个、已入库遗物 ${report.storedArtifactCount} 件`
+  }
+  return ''
+})
+const bootClass = computed(() => (isDegraded() ? 'boot-error' : 'boot-ok'))
 
 function refresh() {
   const payload = loadOverview()

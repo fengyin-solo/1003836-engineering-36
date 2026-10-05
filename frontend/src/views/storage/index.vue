@@ -78,6 +78,7 @@ import {
   listEntries,
   moduleMeta,
   runAction as applyAction,
+  storageStats,
 } from '@/api/local-service'
 import type { EntryRow } from '@/data/types'
 
@@ -85,13 +86,20 @@ const meta = moduleMeta('storage')
 const columns = ["架位编号", "库房名称", "存放器物类别", "架位层数", "容纳件数", "当前件数", "管理人", "架位状态"]
 const actions = ["存放器物", "调整整理", "临时封存"]
 const statuses = ["正常使用", "已满", "待整理", "临时封存"]
-const stats = [{"label": "架位总数", "value": 0}, {"label": "已满架位", "value": 0}, {"label": "可用架位", "value": 0}]
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
+const stats = computed(() => {
+  const summary = storageStats()
+  return [
+    { label: "架位总数", value: summary.total },
+    { label: "已满架位", value: summary.full },
+    { label: "可用架位", value: summary.available },
+  ]
+})
 const statusSummary = computed(() =>
   statuses.map((status: string) => ({
     status,

@@ -74,6 +74,7 @@
 import { computed, onMounted, ref } from 'vue'
 
 import {
+  artifactStats,
   downloadEntries,
   listEntries,
   moduleMeta,
@@ -85,13 +86,20 @@ const meta = moduleMeta('artifact')
 const columns = ["器物编号", "出土探方", "出土层位", "器物质地", "器物类型", "完残程度", "登记人", "登记状态"]
 const actions = ["完成清洗", "分配编号", "办理入库"]
 const statuses = ["已采集", "已清洗", "已编号", "已入库", "借出展示"]
-const stats = [{"label": "遗物总数", "value": 0}, {"label": "已入库数", "value": 0}, {"label": "待清洗数", "value": 0}]
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
+const stats = computed(() => {
+  const summary = artifactStats()
+  return [
+    { label: "遗物总数", value: summary.total },
+    { label: "已入库数", value: summary.stored },
+    { label: "待清洗数", value: summary.pendingWash },
+  ]
+})
 const statusSummary = computed(() =>
   statuses.map((status: string) => ({
     status,

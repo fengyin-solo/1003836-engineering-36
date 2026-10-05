@@ -7,8 +7,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
-    "preview": "vite preview",
-    "typecheck": "vue-tsc --noEmit"
+    "preview": "vite preview --mode preview",
+    "typecheck": "vue-tsc --noEmit",
+    "verify:bootstrap": "bash scripts/run-verify.sh"
   },
   "dependencies": {
     "pinia": "^2.1.7",

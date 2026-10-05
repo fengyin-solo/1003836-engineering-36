@@ -1,5 +1,16 @@
 import { MODULE_BY_KEY } from '@/data/modules'
-import { allRows, listRows, resetRows, saveRows } from '@/data/local-store'
+import { allRows, commitRows, listRows, resetRows, saveRows } from '@/data/local-store'
+import {
+  ARTIFACT_SHELF_FIELD,
+  SHELF_CAPACITY_FIELD,
+  SHELF_CODE_FIELD,
+  SHELF_COUNT_FIELD,
+  SHELF_FULL_STATUS,
+  isShelfFull,
+  pickShelfForArtifact,
+  shelfCapacity,
+  shelfUsed,
+} from '@/data/storage-plan'
 import type { ActionResult, EntryRow, ModuleMeta, OverviewResult, PageResult } from '@/data/types'
 
 // 会写进数据的「往回走」动作：命中就把这条记录标成异常态，看板上能一眼看出来。
@@ -44,6 +55,12 @@ export function runAction(key: string, id: number, action: string): ActionResult
     return { ok: false, message: `${meta.entity}已经是「${target}」，不用重复操作` }
   }
   const lastStatus = meta.statuses[meta.statuses.length - 1]
+
+  // 跨模块联动：遗物办理入库的同时占用一个架位，两边在一次提交里改完。
+  if (key === 'artifact' && action === '办理入库') {
+    return accessionArtifact(rows[index], { pending: '已入库' !== lastStatus })
+  }
+
   const updated: EntryRow = {
     ...rows[index],
     status: target,
@@ -52,8 +69,86 @@ export function runAction(key: string, id: number, action: string): ActionResult
   }
   const next = [...rows]
   next[index] = updated
-  saveRows(key, next)
+  try {
+    saveRows(key, next)
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : '本地数据写回失败，已整批放弃' }
+  }
   return { ok: true, message: `${meta.entity}已${action}，当前状态「${target}」` }
+}
+
+/**
+ * 遗物入藏：按架位编号升序选第一个未满且未封存的架位，
+ * 架位「当前件数」+1，到容量后架位状态置「已满」；遗物与架位一次事务提交。
+ * 结果与启动时架位初始化用同一套容量规则，库房台账与遗物入藏记录对得上。
+ */
+function accessionArtifact(artifact: EntryRow, opts: { pending: boolean }): ActionResult {
+  const artifactRows = listRows('artifact')
+  const shelfRows = listRows('storage')
+  const target = pickShelfForArtifact(shelfRows)
+  if (!target) {
+    return { ok: false, message: '没有可入藏的架位：架位全部已满或已封存，请先在库房管理中整理出库' }
+  }
+  const shelfIndex = shelfRows.findIndex(
+    (row) => String(row[SHELF_CODE_FIELD]) === String(target[SHELF_CODE_FIELD]),
+  )
+  const code = String(target[SHELF_CODE_FIELD])
+  const used = shelfUsed(target)
+  const capacity = shelfCapacity(target)
+  const updatedShelf: EntryRow = {
+    ...target,
+    [SHELF_COUNT_FIELD]: used + 1,
+  }
+  if (used + 1 >= capacity) {
+    updatedShelf.status = SHELF_FULL_STATUS
+  }
+  const updatedArtifact: EntryRow = {
+    ...artifact,
+    status: '已入库',
+    pending: opts.pending,
+    abnormal: false,
+    [ARTIFACT_SHELF_FIELD]: code,
+  }
+  const nextArtifacts = artifactRows.map((row) =>
+    Number(row.id) === Number(artifact.id) ? updatedArtifact : row,
+  )
+  const nextShelves = [...shelfRows]
+  nextShelves[shelfIndex] = updatedShelf
+  try {
+    commitRows({ artifact: nextArtifacts, storage: nextShelves })
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : '入藏写回失败，架位与遗物均未改动' }
+  }
+  const capacityNote = used + 1 >= capacity ? '，该架位已满' : `，架位剩余容量 ${capacity - used - 1}`
+  return {
+    ok: true,
+    message: `出土遗物已办理入库，入藏架位「${code}」，当前件数 ${used + 1}/${capacity}${capacityNote}`,
+  }
+}
+
+/** 库房管理工作台指标：满架 / 可用按容量计算，与入藏占用同一规则。 */
+export function storageStats(): { total: number; full: number; available: number } {
+  const rows = listRows('storage')
+  return {
+    total: rows.length,
+    full: rows.filter((row) => {
+      if (String(row.status) === SHELF_FULL_STATUS) {
+        return true
+      }
+      return isShelfFull(row)
+    }).length,
+    available: rows.filter((row) => !isShelfFull(row)).length,
+  }
+}
+
+/** 出土遗物工作台指标：已入库数与库房台账口径一致（含入藏架位记录）。 */
+export function artifactStats(): { total: number; stored: number; pendingWash: number } {
+  const rows = listRows('artifact')
+  return {
+    total: rows.length,
+    stored: rows.filter((row) => String(row.status) === '已入库').length,
+    pendingWash: rows.filter((row) => String(row.status) === '已采集').length,
+  }
 }
 
 export function resetModule(key: string): PageResult {
