@@ -1,6 +1,9 @@
 import type { EntryRow } from './types'
+import { buildSeedStorageRows, countStoredArtifacts } from './storage-catalog'
 
 // 示例数据：首次打开时播种，之后浏览器里的改动优先，重置才会回到这份。
+// 库房架位由容量目录生成，容量/当前件数是数字而不是占位文字，
+// 且「当前件数」由已入库遗物数统一推导，遗物入藏与库房工作台不会对不上。
 export const SEED_ROWS: Record<string, EntryRow[]> = {
   "trench": [
     {
@@ -165,8 +168,8 @@ export const SEED_ROWS: Record<string, EntryRow[]> = {
     },
     {
       "id": 3,
-      "status": "已编号",
-      "pending": false,
+      "status": "已入库",
+      "pending": true,
       "abnormal": false,
       "器物编号": "ARTI-0003",
       "出土探方": "出土遗物样例3",
@@ -662,50 +665,8 @@ export const SEED_ROWS: Record<string, EntryRow[]> = {
       "记录状态": "三维坐标样例3"
     }
   ],
-  "storage": [
-    {
-      "id": 1,
-      "status": "正常使用",
-      "pending": true,
-      "abnormal": false,
-      "架位编号": "STOR-0001",
-      "库房名称": "库房管理样例1",
-      "存放器物类别": "库房管理样例1",
-      "架位层数": "库房管理样例1",
-      "容纳件数": "库房管理样例1",
-      "当前件数": "库房管理样例1",
-      "管理人": "库房管理样例1",
-      "架位状态": "库房管理样例1"
-    },
-    {
-      "id": 2,
-      "status": "已满",
-      "pending": true,
-      "abnormal": true,
-      "架位编号": "STOR-0002",
-      "库房名称": "库房管理样例2",
-      "存放器物类别": "库房管理样例2",
-      "架位层数": "库房管理样例2",
-      "容纳件数": "库房管理样例2",
-      "当前件数": "库房管理样例2",
-      "管理人": "库房管理样例2",
-      "架位状态": "库房管理样例2"
-    },
-    {
-      "id": 3,
-      "status": "待整理",
-      "pending": false,
-      "abnormal": false,
-      "架位编号": "STOR-0003",
-      "库房名称": "库房管理样例3",
-      "存放器物类别": "库房管理样例3",
-      "架位层数": "库房管理样例3",
-      "容纳件数": "库房管理样例3",
-      "当前件数": "库房管理样例3",
-      "管理人": "库房管理样例3",
-      "架位状态": "库房管理样例3"
-    }
-  ],
+  // 对象创建完成后用已入库遗物数重算覆盖，保证架位件数与遗物状态同源。
+  "storage": [],
   "material": [
     {
       "id": 1,
@@ -795,3 +756,7 @@ export const SEED_ROWS: Record<string, EntryRow[]> = {
     }
   ],
 }
+
+// 库房架位按容量目录生成，当前件数/状态由同一分配算法从已入库遗物推导：
+// 启动初始化与遗物「办理入库」用的是同一个算法，两边数字始终一致。
+SEED_ROWS.storage = buildSeedStorageRows(countStoredArtifacts(SEED_ROWS.artifact))

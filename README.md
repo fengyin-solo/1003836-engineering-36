@@ -68,4 +68,20 @@ npm run build
 - 字段、状态、动作与流转目标集中在 `frontend/src/data/modules.ts`；示例数据在
   `frontend/src/data/seed.ts`。
 - 状态流转只允许在 `local-service.ts` 里改，页面组件不做业务判断。
-- 想回到初始数据：清掉浏览器里 `field-archaeology-digital:entries` 这一项，或调用 `resetModule(模块)`。
+- 想回到初始数据：清掉浏览器里 `field-archaeology-digital:entries` 这一项（连同
+  `field-archaeology-digital:bootstrap` 初始化标记一起删），或调用 `resetModule(模块)`。
+
+### 库房架位容量初始化
+
+库房架位的容量规范集中在 `frontend/src/data/storage-catalog.ts`（架位编号 → 容纳件数/层数/状态），
+应用启动时由 `frontend/src/data/bootstrap.ts` 执行一次性整批初始化（`main.ts` 在挂载前调用）：
+
+- **全新环境**（本地开发、构建预览首次打开）：按容量目录播种同一批标准架位，架位件数由已入库
+  遗物数经统一分配算法推导，不同环境长出的架位完全一致。
+- **已有浏览器存储**（历史环境）：按架位编号回填「容纳件数 / 当前件数」，缺失架位（如新增的
+  `STOR-0004` 起）整批追加；用户已改成合法数字的容量与件数原样保留，不覆盖。
+- **只执行一次**：版本标记写在 `field-archaeology-digital:bootstrap`，重复打开不再追加架位。
+- **失败整批回退**：容量不足、件数超过容量、JSON 损坏等情况一律不写入，数据恢复到打开前原样，
+  页面顶部红条给出错误码、两个 localStorage 键名与可复现的 Console 排查步骤。
+- 出土遗物「办理入库」复用同一分配算法，遗物状态与架位件数一次批量提交；没有可放的正常架位时
+  整单拒绝，不会出现遗物已入库、架位件数没加上的半成品。
